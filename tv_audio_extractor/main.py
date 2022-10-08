@@ -49,6 +49,7 @@ class ScanException(Exception):
 
 def scan_video(path: str) -> VideoMetadata:
     filename = Path(path).stem
+    filename = filename.replace("'", '') # doesn't seem to like apostrophes
     expected_fields = 'season', 'episode', 'title', 'episodeName'
     result = parse(filename)
 
