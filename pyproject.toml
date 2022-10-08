@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "tv-audio-extractor"
-version = "0.1.0"
-description = ""
+version = "0.1.1"
+description = "Extracts audio from tv shows and tags them appropriately"
 authors = ["David Padbury <david@davidpadbury.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.9"
 parse-torrent-title = "^2.4"
 typer = "^0.6.1"
 rich = "^12.6.0"
