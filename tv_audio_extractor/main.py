@@ -1,5 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Iterable, Optional, Sequence
 import typer
 import os
 import subprocess
@@ -12,22 +13,6 @@ from time import sleep
 
 
 _video_matchers = '*.mp4', '*.mkv'
-
-
-def _is_video_file(filename: str) -> bool:
-    for matcher in _video_matchers:
-        if fnmatch(filename, matcher):
-            return True
-
-    return False
-
-
-def _find_video_files(path: Path) -> Iterable[str]:
-    for root, dirs, files in os.walk(path):
-        for file in files:
-            if _is_video_file(file):
-                yield os.path.join(root, file)
-
 
 @dataclass(frozen=True)
 class VideoMetadata:
@@ -45,6 +30,21 @@ class ScanException(Exception):
         super().__init__(message)
         self.path = path
         self.message = message
+
+
+def _is_video_file(filename: str) -> bool:
+    for matcher in _video_matchers:
+        if fnmatch(filename, matcher):
+            return True
+
+    return False
+
+
+def _find_video_files(path: Path) -> Iterable[str]:
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if _is_video_file(file):
+                yield os.path.join(root, file)
 
 
 def scan_video(path: str) -> VideoMetadata:
@@ -135,17 +135,27 @@ def transcode(task: TranscodeTask) -> None:
     subprocess.run(args, check=True)
 
 
-def _main(output: Path, inputs: list[Path]):
+def _lookup_cpu_count() -> int:
+    return os.cpu_count() or 1
+
+
+def _main(
+    output: Path, 
+    inputs: list[Path], 
+    threads:Optional[int] = typer.Option(None, help='Number of concurrent threads to transcode with (defaults to cpu count)')
+):
     video_files = set(flatten(map(_find_video_files, inputs)))
 
     tasks = list(mk_transcode_tasks(video_files, output))
 
-    print(f'Transcoding {len(tasks)} files')
+    max_workers = threads or _lookup_cpu_count()
 
-    with Progress() as progress:
+    print(f'Transcoding {len(tasks)} files using {max_workers} threads')
+
+    with Progress() as progress, ThreadPoolExecutor(max_workers=max_workers) as executor:
         progress_task_id = progress.add_task('Transcoding', total=len(tasks))
 
-        for task in tasks:
+        def run(task: TranscodeTask) -> None:
             progress.console.print(str(task.metadata))
             try:
                 transcode(task)
@@ -157,6 +167,11 @@ def _main(output: Path, inputs: list[Path]):
                     os.remove(dest_path)
 
             progress.advance(progress_task_id)
+
+        task_result_futures = list(map(lambda task: executor.submit(run, task), tasks))
+
+        wait(task_result_futures)
+
 
 
 def main():
