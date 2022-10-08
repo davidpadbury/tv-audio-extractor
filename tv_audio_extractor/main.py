@@ -134,7 +134,7 @@ def transcode(task: TranscodeTask) -> None:
     subprocess.run(args, check=True)
 
 
-def main(output: Path, inputs: list[Path]):
+def _main(output: Path, inputs: list[Path]):
     video_files = set(flatten(map(_find_video_files, inputs)))
 
     tasks = list(mk_transcode_tasks(video_files, output))
@@ -158,5 +158,9 @@ def main(output: Path, inputs: list[Path]):
             progress.advance(progress_task_id)
 
 
+def main():
+    typer.run(_main)
+
+
 if __name__ == "__main__":
-    typer.run(main)
+    typer.run(_main)
