@@ -121,7 +121,7 @@ def transcode(task: TranscodeTask) -> None:
         track=str(task.metadata.episode_num)
     )
 
-    metadata_args: list[str] = list(flatten(map(lambda item: [ '-metadata', f'{item[0]}="{item[1]}"'], metadata_tags.items())))
+    metadata_args: list[str] = list(flatten(map(lambda item: [ '-metadata', f'{item[0]}={item[1]}'], metadata_tags.items())))
 
     args = [ 
         'ffmpeg',
