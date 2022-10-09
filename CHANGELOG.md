@@ -1,3 +1,7 @@
+# [Unreleased]
+- Lock around creating directories
+- No double quotes in ID3 metadata
+- Crude approach for dealing with multiple episode numbers in single episode
 # [0.1.3] - 2022-10-08
 - Support concurrent transcoding to use many cores.
 
