@@ -1,15 +1,16 @@
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional, cast
 import typer
 import os
 import subprocess
 from fnmatch import fnmatch
-from pathlib import Path, PurePath
-from tv_audio_extractor.utils import flatten
+from pathlib import Path
 from PTN import parse
 from rich.progress import Progress
 from threading import Lock
+
+from tv_audio_extractor.utils import flatten
 
 
 _video_matchers = '*.mp4', '*.mkv'
@@ -65,13 +66,25 @@ def _scan_video(path: str) -> VideoMetadata:
             message = f'Missing metadata fields [{missing_fields_str}]'
             raise ScanException(filename, message)
 
+    def normalize_episode_num() -> int:
+        value = result['episode']
+
+        if isinstance(value, int):
+            return value
+        elif isinstance(value, list):
+            # just take the first if it has many
+            return cast(int, value[0])
+        else:
+            raise ValueError(f'episode num has unexpected type: {type(value)}')
+
+
     verify_all_fields()
 
     return VideoMetadata(
         show=result['title'],
         episode_name=result['episodeName'],
         season_num=result['season'],
-        episode_num=result['episode']
+        episode_num=normalize_episode_num()
     )
 
 
