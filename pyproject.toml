@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tv-audio-extractor"
-version = "0.1.4"
+version = "0.1.5a0"
 description = "Extracts audio from tv shows and tags them appropriately"
 authors = ["David Padbury <david@davidpadbury.com>"]
 
