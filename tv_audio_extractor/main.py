@@ -9,7 +9,7 @@ from pathlib import Path, PurePath
 from tv_audio_extractor.utils import flatten
 from PTN import parse
 from rich.progress import Progress
-from time import sleep
+from threading import Lock
 
 
 _video_matchers = '*.mp4', '*.mkv'
@@ -47,7 +47,7 @@ def _find_video_files(path: Path) -> Iterable[str]:
                 yield os.path.join(root, file)
 
 
-def scan_video(path: str) -> VideoMetadata:
+def _scan_video(path: str) -> VideoMetadata:
     filename = Path(path).stem
     filename = filename.replace("'", '') # doesn't seem to like apostrophes
     expected_fields = 'season', 'episode', 'title', 'episodeName'
@@ -82,16 +82,16 @@ class TranscodeTask:
     metadata: VideoMetadata
 
 
-def mk_output_path(output: Path, metadata: VideoMetadata) -> Path:
+def _mk_output_path(output: Path, metadata: VideoMetadata) -> Path:
     filename = f'S{str(metadata.season_num).zfill(2)}E{str(metadata.episode_num).zfill(2)} - {metadata.episode_name}.mp3'
     return output / metadata.show / filename
 
 
-def mk_transcode_tasks(video_paths: Iterable[str], output: Path) -> Iterable[TranscodeTask]:
+def _mk_transcode_tasks(video_paths: Iterable[str], output: Path) -> Iterable[TranscodeTask]:
    for path in video_paths:
         try:
-            metadata = scan_video(path)
-            destination = mk_output_path(output, metadata)
+            metadata = _scan_video(path)
+            destination = _mk_output_path(output, metadata)
 
             # only yield those that exist
             if not destination.exists():
@@ -101,15 +101,23 @@ def mk_transcode_tasks(video_paths: Iterable[str], output: Path) -> Iterable[Tra
             print(f'ERROR: Could not parse video filename [{scan_ex.path}]: {scan_ex.message}') 
 
 
+_create_destination_dir_lock = Lock()
+
 def _ensure_destination_dir(destination: str) -> None:
     destination_path = Path(destination)
     parent_dir = destination_path.parent
 
+    # double checked lock
     if not parent_dir.exists():
-        parent_dir.mkdir(parents=True)
+        _create_destination_dir_lock.acquire()
+        try:
+            if not parent_dir.exists():
+                parent_dir.mkdir(parents=True)
+        finally:
+            _create_destination_dir_lock.release()
 
 
-def transcode(task: TranscodeTask) -> None:
+def _transcode(task: TranscodeTask) -> None:
     _ensure_destination_dir(task.destination)
 
     # tags taken from https://wiki.multimedia.cx/index.php?title=FFmpeg_Metadata#MP3
@@ -146,7 +154,7 @@ def _main(
 ):
     video_files = set(flatten(map(_find_video_files, inputs)))
 
-    tasks = list(mk_transcode_tasks(video_files, output))
+    tasks = list(_mk_transcode_tasks(video_files, output))
 
     max_workers = threads or _lookup_cpu_count()
 
@@ -158,7 +166,7 @@ def _main(
         def run(task: TranscodeTask) -> None:
             progress.console.print(str(task.metadata))
             try:
-                transcode(task)
+                _transcode(task)
             except Exception as ex:
                 progress.console.print(f'[bold red]ERROR[/] Failed to transcode {task.source}')
                 progress.console.print(str(ex))
